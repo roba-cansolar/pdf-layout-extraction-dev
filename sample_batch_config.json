@@ -1,0 +1,15 @@
+{
+  "files": [
+    "docs/full_pdf/sample1.pdf",
+    "docs/full_pdf/sample2.pdf"
+  ],
+  "pages": [
+    0,
+    0
+  ],
+  "layers": [
+    "E-CB_AREA",
+    "E-CONDUIT"
+  ],
+  "description": "Sample batch configuration - update with your actual files and layers"
+}
