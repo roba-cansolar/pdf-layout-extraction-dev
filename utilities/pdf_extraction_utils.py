@@ -200,7 +200,7 @@ class ExtractionConfig:
         
         # Performance-optimized configuration
         config = ExtractionConfig()
-        config.grid_size = 5.0
+        config.grid_size = 0.1
         config.dpi = 100
         config.extension_length = 30.0
     """
@@ -213,7 +213,7 @@ class ExtractionConfig:
         self.min_polygon_area = 10.0  # Minimum area threshold for valid polygons
         
         # Performance parameters - control speed vs. quality trade-offs
-        self.grid_size = 3.0  # Grid size for Shapely spatial operations
+        self.grid_size = 0.1  # Grid size for Shapely spatial operations
         self.max_iterations = 100  # Maximum iterations for iterative algorithms
         self.batch_size = 10  # Batch size for multi-page processing
         
