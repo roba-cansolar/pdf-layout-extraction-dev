@@ -67,12 +67,14 @@ def align_by_width_edge_rows(
     # --- 1) Scale from short-side width
     wt = _short_side_width(tgt)
     ws = _short_side_width(src_polys)
+    print("target width, source width", wt, ws)
     s  = wt / ws if ws > 0 else 1.0
-
-    # scale about centroid of all source geometry
-    src_union_all = unary_union(src_orig)
-    cx, cy = src_union_all.centroid.x, src_union_all.centroid.y
-    src_scaled = [affinity.scale(g, xfact=s, yfact=s, origin=(cx, cy)) for g in src_orig]
+    print("scale", s)
+    
+    # Fix 1: Scale around target centroid for better handling of scale > 1
+    tgt_union = unary_union(tgt)
+    target_cx, target_cy = tgt_union.centroid.x, tgt_union.centroid.y
+    src_scaled = [affinity.scale(g, xfact=s, yfact=s, origin=(target_cx, target_cy)) for g in src_orig]
 
     # polygonized version of scaled source for bbox/pitch ops
     src_scaled_polys = []
@@ -83,7 +85,7 @@ def align_by_width_edge_rows(
             src_scaled_polys.extend(_polygonize_lines(g))
 
     # --- 2) Snap edges (left + bottom)
-    tgt_union = unary_union(tgt)
+    # Note: tgt_union already calculated above
     src_union = unary_union(src_scaled_polys)
     minx_t, miny_t, _, _ = tgt_union.bounds
     minx_s, miny_s, _, _ = src_union.bounds
@@ -91,7 +93,11 @@ def align_by_width_edge_rows(
     dy_base = miny_t - miny_s
 
     # --- 3) Row shift by integer pitch steps
-    pitch = _row_pitch_from_target(tgt)
+    # Fix 3: Scale-aware row pitch - use minimum of target and scaled source pitch
+    pitch_tgt = _row_pitch_from_target(tgt)
+    pitch_src = _row_pitch_from_target(src_scaled_polys)
+    pitch = min(pitch_tgt, pitch_src) if pitch_src > 0 else pitch_tgt
+    print("target pitch, source pitch, selected pitch", pitch_tgt, pitch_src, pitch)
     ys_t = np.array([p.centroid.y for p in tgt])
     ys_s = np.array([p.centroid.y for p in src_scaled_polys])
     y0 = float(np.median(ys_t))
@@ -101,12 +107,22 @@ def align_by_width_edge_rows(
     ct = Counter(idx_t)
     best_k, best_overlap = 0, -1
     for k in range(-row_shift_range, row_shift_range + 1):
+        print("k", k)
         idx_s = np.round((ys_s + dy_base + k * pitch - y0) / pitch).astype(int)
         cs = Counter(idx_s)
         overlap = sum(min(ct[r], cs.get(r, 0)) for r in ct.keys())
+        # Area-based overlap calculation
+        """   overlap = 0.0
+        for t_poly in tgt:
+            for s_poly in src_scaled_polys:
+                inter = t_poly.intersection(s_poly)
+                if not inter.is_empty:
+                    overlap += inter.area"""
+        print("overlap", overlap)
         if overlap > best_overlap:
             best_overlap, best_k = overlap, k
-
+    print("best_overlap", best_overlap)
+    print("best_k", best_k)
     dy = dy_base + best_k * pitch
 
     # Apply final transform to original source geoms and return as MultiLineString
@@ -120,6 +136,27 @@ def align_by_width_edge_rows(
             line_parts.extend(gb.geoms)
     out_mls = MultiLineString([ln.coords for ln in line_parts])
 
-    params = dict(scale=float(s), dx=float(dx_edge), dy=float(dy),
-                  pitch=float(pitch), row_shift=int(best_k))
+    # --- build a valid origin-based affine for shapely.affine_transform
+    # we already have: s (scale), dx, dy, and (target_cx, target_cy) from the target centroid used for scaling
+
+    a = s
+    b = 0.0
+    d = 0.0
+    e = s
+    xoff = dx_edge + (1.0 - s) * target_cx
+    yoff = dy + (1.0 - s) * target_cy
+
+    affine_origin_based = [a, b, d, e, xoff, yoff]
+
+    params = dict(
+        scale=float(s),
+        dx=float(dx_edge),
+        dy=float(dy),
+        pitch=float(pitch),
+        row_shift=int(best_k),
+        origin_cx=float(target_cx),
+        origin_cy=float(target_cy),
+        affine=affine_origin_based,      # <<-- add this
+    )
+
     return params, out_mls, aoi

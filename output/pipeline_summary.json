@@ -1,0 +1,27 @@
+{
+  "configuration": {
+    "pdf_path": "C:/Users/roba7/Documents/Programming projects/as-built-processing/pdf_layout_extraction_dev/docs/full_pdf/NorthStar As Built - Rev 2 2016-11-15.pdf",
+    "pages_processed": "14 to 15",
+    "site_layer": "Xpanels - Northstar|M-PLAN-TRACKER OUTLINE",
+    "inverter_layer": "key plan|BEI-BLOCK-OUTLINE",
+    "scale_mode": "fit",
+    "rack_alignment_enabled": true
+  },
+  "results": {
+    "total_features": 1381,
+    "feature_breakdown": {
+      "inverter": 50,
+      "rack_outlines": 1260,
+      "combiner_boxes": 22,
+      "combiner_outlines": 23,
+      "ug_conduit": 1,
+      "inverter_boxed": 3,
+      "combiner": 22
+    }
+  },
+  "performance": {
+    "max_workers": 8,
+    "batch_size": 10,
+    "cache_enabled": true
+  }
+}

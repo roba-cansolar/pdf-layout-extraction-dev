@@ -760,7 +760,7 @@ def visualize_extraction_results(page, lines: List[LineString],
 
 
 def extract_polygons_from_layer(file_path: str, page_number: int, layer_name: str,
-                               config: ExtractionConfig = None, clip_poly: Polygon = None) -> Dict[str, Any]:
+                               config: ExtractionConfig = None, clip_poly: Polygon = None, fill_lines: bool = True) -> Dict[str, Any]:
     """
     Main pipeline function to extract component boundary polygons from a specific PDF layer.
     
@@ -794,6 +794,10 @@ def extract_polygons_from_layer(file_path: str, page_number: int, layer_name: st
                          - "EQUIPMENT": General equipment boundaries
         config (ExtractionConfig, optional): Configuration parameters. If None,
                                            default configuration is used.
+        clip_poly (Polygon, optional): Clip polygon to filter elements within a specific region.
+        fill_lines (bool): If True, runs full line processing (snapping, extensions, polygonization).
+                          If False, uses simplified polygonization directly on original lines.
+                          Default: True
         
     Returns:
         Dict[str, Any]: Comprehensive extraction results containing:
@@ -923,14 +927,17 @@ def extract_polygons_from_layer(file_path: str, page_number: int, layer_name: st
                 'processing_time': time.time() - start_time
             }
         
-        # Snap endpoints (matches original implementation exactly)
-        snapped_lines = cluster_and_snap_endpoints(lines, config.tolerance)
         
-        # Extend dangles
-        extensions = extend_dangles(snapped_lines, config)
-        
-        # Create polygons
-        polygons = polygonize_lines(snapped_lines, extensions, config)
+        if fill_lines:
+            # Full line processing pipeline: snap endpoints, extend dangles, then polygonize
+            snapped_lines = cluster_and_snap_endpoints(lines, config.tolerance)
+            extensions = extend_dangles(snapped_lines, config)
+            polygons = polygonize_lines(snapped_lines, extensions, config)
+        else:
+            # Simplified processing: use original lines directly for polygonization
+            snapped_lines = lines
+            extensions = []
+            polygons = list(polygonize(lines))
         
         processing_time = time.time() - start_time
         
@@ -1764,7 +1771,7 @@ def extract_page_elements(test_pdf, page_number, config, layers_dict):
     clip_poly = None
     if 'combiner_outlines' in layers_dict:
         combiner_result = extract_polygons_from_layer(
-            test_pdf, page_number, layers_dict['combiner_outlines']['layer'], config, None
+            test_pdf, page_number, layers_dict['combiner_outlines']['layer'], config, None, layers_dict['combiner_outlines']['fill_lines']
         )
         results['combiner_outlines'] = combiner_result
         clip_poly = combiner_result.get('clip_poly', None)
@@ -1773,7 +1780,7 @@ def extract_page_elements(test_pdf, page_number, config, layers_dict):
         if key == 'combiner_outlines':
             continue  # already handled
         result = extract_polygons_from_layer(
-            test_pdf, page_number, info['layer'], config, clip_poly
+            test_pdf, page_number, info['layer'], config, clip_poly, info['fill_lines']
         )
         results[key] = result
 

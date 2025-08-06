@@ -1,0 +1,33 @@
+{
+  "pdf_path": "C:/Users/roba7/Documents/Programming projects/as-built-processing/pdf_layout_extraction_dev/docs/full_pdf/NorthStar As Built - Rev 2 2016-11-15.pdf",
+  
+  "page_start": 13,
+  "page_end": 63,
+  "overview_page": 14,
+  "site_layout_page": 1,
+  
+  "site_layer": "Xpanels - Northstar|M-PLAN-TRACKER OUTLINE",
+  "inverter_layer": "key plan|BEI-BLOCK-OUTLINE",
+  "combiner_layer": "E-CB_AREA",
+  "rack_outline_layer": "Xpanels - Northstar|E-PLAN-MCB",
+  
+  "scale_mode": "fit",
+  "enable_rack_alignment": true,
+  "rack_alignment_iterations": 4,
+  
+  "max_workers": 8,
+  "batch_size": 10,
+  "cache_enabled": true,
+  "cache_dir": "./cache",
+  
+  "extension_length": 50.0,
+  "simplify_tolerance": 0.02,
+  
+  "api_rate_limit": 60,
+  "api_timeout": 30,
+  "api_retry_count": 3,
+  
+  "output_dir": "./output",
+  "output_format": "geojson",
+  "include_debug_layers": false
+}
