@@ -1459,6 +1459,10 @@ def process_elements_on_page(file_path: str, page_number: int, result: Dict[str,
         img_bytes = clipped_results['vector_pdf'][page_number].get_pixmap(dpi=100).tobytes("png")
 
         label, token_count = get_label_from_gemini(img_bytes,labels,element_type)
+
+        if label is None:
+            label, token_count = get_label_from_gemini(img_bytes,labels,element_type)
+            
         labels.append(label)
         token_total += token_count
         #print(label+" "+str(token_count))

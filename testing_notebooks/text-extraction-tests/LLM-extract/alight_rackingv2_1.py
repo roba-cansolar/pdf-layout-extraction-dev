@@ -186,7 +186,7 @@ def _optimize_scale_by_spacings(
     target_cx: float,
     target_cy: float
 ) -> float:
-    """Fine-tune scale by directly matching row spacing distributions with multi-stage optimization"""
+    """Fast 2-stage optimization: smart bounds + golden section search"""
     
     poly_list_tgt = list(target_polys)
     poly_list_src = list(source_polys)
@@ -194,79 +194,83 @@ def _optimize_scale_by_spacings(
     if len(poly_list_tgt) < 3 or len(poly_list_src) < 3:
         return initial_scale
     
-    # Extract target row spacings once
+    # Extract target and source spacings once
     target_spacings = _extract_row_spacings(poly_list_tgt)
-    if len(target_spacings) == 0:
+    source_spacings = _extract_row_spacings(poly_list_src)
+    
+    if len(target_spacings) == 0 or len(source_spacings) == 0:
         return initial_scale
     
+    # Smart initial bounds based on spacing ratio analysis
+    target_mean = np.mean(target_spacings)
+    source_mean = np.mean(source_spacings)
+    
+    # Analytical estimate for optimal scale
+    analytical_scale = target_mean / source_mean if source_mean > 0 else initial_scale
+    
+    # Use the better of analytical vs pitch-based initial estimate
+    if abs(analytical_scale - initial_scale) / initial_scale > 0.1:  # If they differ significantly
+        print(f"Analytical scale estimate: {analytical_scale:.4f} vs pitch-based: {initial_scale:.4f}")
+        # Quick test both to see which is better starting point
+        def quick_evaluate(test_scale: float) -> float:
+            """Quick evaluation using pre-computed spacings"""
+            scaled_spacings = source_spacings * test_scale
+            return abs(np.mean(scaled_spacings) - target_mean) / target_mean
+        
+        if quick_evaluate(analytical_scale) < quick_evaluate(initial_scale):
+            best_start = analytical_scale
+            print(f"Using analytical estimate as starting point")
+        else:
+            best_start = initial_scale
+            print(f"Using pitch-based estimate as starting point")
+    else:
+        best_start = initial_scale
+    
     def evaluate_scale(test_scale: float) -> float:
-        """Helper function to evaluate a scale factor"""
-        scaled_src_polys = [affinity.scale(p, xfact=test_scale, yfact=test_scale, 
-                                         origin=(target_cx, target_cy)) for p in poly_list_src]
-        source_spacings = _extract_row_spacings(scaled_src_polys)
-        return _calculate_spacing_score(target_spacings, source_spacings)
+        """Optimized evaluation function"""
+        # Scale the pre-computed source spacings instead of re-scaling polygons
+        scaled_spacings = source_spacings * test_scale
+        return _calculate_spacing_score(target_spacings, scaled_spacings)
     
-    best_scale = initial_scale
-    best_score = evaluate_scale(initial_scale)
+    # Stage 1: Smart coarse search (reduced range, fewer points)
+    print("Fast coarse optimization...")
+    # Narrow the search range based on confidence in starting point
+    search_factor = 0.15 if abs(analytical_scale - initial_scale) / initial_scale < 0.05 else 0.25
+    scale_range = np.linspace(best_start * (1 - search_factor), best_start * (1 + search_factor), 25)
     
-    # Stage 1: Coarse search with wide range
-    print("Stage 1: Coarse optimization...")
-    scale_range_coarse = np.linspace(initial_scale * 0.7, initial_scale * 1.3, 61)
+    best_scale = best_start
+    best_score = evaluate_scale(best_start)
     
-    for test_scale in scale_range_coarse:
-        score = evaluate_scale(test_scale)
-        if score < best_score:
-            best_score = score
-            best_scale = test_scale
-    
-    # Stage 2: Fine search around best candidate
-    print(f"Stage 2: Fine optimization around {best_scale:.4f}...")
-    search_window = abs(best_scale * 0.05)  # ±5% around best candidate
-    scale_range_fine = np.linspace(best_scale - search_window, best_scale + search_window, 101)
-    
-    for test_scale in scale_range_fine:
-        if test_scale <= 0:  # Skip invalid scales
+    for test_scale in scale_range:
+        if test_scale <= 0:
             continue
         score = evaluate_scale(test_scale)
         if score < best_score:
             best_score = score
             best_scale = test_scale
     
-    # Stage 3: Ultra-fine search for precision
-    print(f"Stage 3: Ultra-fine optimization around {best_scale:.4f}...")
-    search_window_ultra = abs(best_scale * 0.01)  # ±1% around best candidate
-    scale_range_ultra = np.linspace(best_scale - search_window_ultra, best_scale + search_window_ultra, 201)
+    # Stage 2: Golden section search for precision
+    print(f"Golden section refinement around {best_scale:.4f}...")
     
-    for test_scale in scale_range_ultra:
-        if test_scale <= 0:  # Skip invalid scales
-            continue
-        score = evaluate_scale(test_scale)
-        if score < best_score:
-            best_score = score
-            best_scale = test_scale
-    
-    # Stage 4: Golden section search for final precision
-    print("Stage 4: Golden section search for final precision...")
-    
-    # Golden ratio for optimal search
+    # Golden ratio
     phi = (1 + np.sqrt(5)) / 2
     resphi = 2 - phi
     
-    # Set search bounds around current best
-    search_width = abs(best_scale * 0.005)  # ±0.5% 
+    # Tight bounds around best candidate
+    search_width = abs(best_scale * 0.02)  # ±2%
     tol = abs(best_scale * 0.0001)  # 0.01% tolerance
     
-    a = max(best_scale - search_width, initial_scale * 0.1)  # Lower bound
-    b = best_scale + search_width  # Upper bound
+    a = max(best_scale - search_width, best_start * 0.5)
+    b = best_scale + search_width
     
-    # Initial points
+    # Golden section search
     c = a + resphi * (b - a)
     d = a + (1 - resphi) * (b - a)
     fc = evaluate_scale(c)
     fd = evaluate_scale(d)
     
     iteration = 0
-    while abs(b - a) > tol and iteration < 20:
+    while abs(b - a) > tol and iteration < 15:  # Reduced max iterations
         iteration += 1
         if fc < fd:
             b = d
@@ -281,7 +285,6 @@ def _optimize_scale_by_spacings(
             d = a + (1 - resphi) * (b - a)
             fd = evaluate_scale(d)
     
-    # Final best scale
     final_scale = (a + b) / 2
     final_score = evaluate_scale(final_scale)
     
@@ -289,7 +292,7 @@ def _optimize_scale_by_spacings(
         best_scale = final_scale
         best_score = final_score
     
-    print(f"Scale optimization complete: {initial_scale:.6f} -> {best_scale:.6f} (score: {best_score:.6f})")
+    print(f"Fast optimization: {initial_scale:.4f} -> {best_scale:.4f} (score: {best_score:.4f})")
     return best_scale
 
 def align_by_pitch_edge_rows(
