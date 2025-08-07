@@ -219,10 +219,10 @@ def _optimize_scale_by_spacings(
         
         if quick_evaluate(analytical_scale) < quick_evaluate(initial_scale):
             best_start = analytical_scale
-            print(f"Using analytical estimate as starting point")
+            #print(f"Using analytical estimate as starting point")
         else:
             best_start = initial_scale
-            print(f"Using pitch-based estimate as starting point")
+            #print(f"Using pitch-based estimate as starting point")
     else:
         best_start = initial_scale
     
@@ -233,7 +233,7 @@ def _optimize_scale_by_spacings(
         return _calculate_spacing_score(target_spacings, scaled_spacings)
     
     # Stage 1: Smart coarse search (reduced range, fewer points)
-    print("Fast coarse optimization...")
+    #print("Fast coarse optimization...")
     # Narrow the search range based on confidence in starting point
     search_factor = 0.15 if abs(analytical_scale - initial_scale) / initial_scale < 0.05 else 0.25
     scale_range = np.linspace(best_start * (1 - search_factor), best_start * (1 + search_factor), 25)
@@ -250,7 +250,7 @@ def _optimize_scale_by_spacings(
             best_scale = test_scale
     
     # Stage 2: Golden section search for precision
-    print(f"Golden section refinement around {best_scale:.4f}...")
+    #print(f"Golden section refinement around {best_scale:.4f}...")
     
     # Golden ratio
     phi = (1 + np.sqrt(5)) / 2
@@ -329,17 +329,17 @@ def align_by_pitch_edge_rows(
     # --- 1) Scale from row pitch (first pass)
     pitch_tgt = _row_pitch_from_target(tgt)
     pitch_src = _row_pitch_from_target(src_polys)
-    print("target pitch, source pitch", pitch_tgt, pitch_src)
+    #print("target pitch, source pitch", pitch_tgt, pitch_src)
     s_initial = pitch_tgt / pitch_src if pitch_src > 0 else 1.0
     
-    print("initial pitch-based scale", s_initial)
+    #print("initial pitch-based scale", s_initial)
     
     # Get target centroid for scaling operations
     tgt_union = unary_union(tgt)
     target_cx, target_cy = tgt_union.centroid.x, tgt_union.centroid.y
     
     # --- 1.5) Fine-tune scale using row spacing analysis
-    print("Optimizing scale using row spacing analysis...")
+    #print("Optimizing scale using row spacing analysis...")
     s_optimized = _optimize_scale_by_spacings(tgt, src_polys, s_initial, target_cx, target_cy)
     
     # Use the optimized scale
@@ -365,7 +365,7 @@ def align_by_pitch_edge_rows(
     # --- 3) Row shift by integer pitch steps
     # Use target pitch for row alignment (source should now match after scaling)
     pitch = pitch_tgt
-    print("using target pitch for alignment", pitch)
+    #print("using target pitch for alignment", pitch)
     ys_t = np.array([p.centroid.y for p in tgt])
     ys_s = np.array([p.centroid.y for p in src_scaled_polys])
     y0 = float(np.median(ys_t))
@@ -375,7 +375,7 @@ def align_by_pitch_edge_rows(
     ct = Counter(idx_t)
     best_k, best_overlap = 0, -1
     for k in range(-row_shift_range, row_shift_range + 1):
-        print("k", k)
+        #print("k", k)
         idx_s = np.round((ys_s + dy_base + k * pitch - y0) / pitch).astype(int)
         cs = Counter(idx_s)
         overlap = sum(min(ct[r], cs.get(r, 0)) for r in ct.keys())
@@ -386,10 +386,10 @@ def align_by_pitch_edge_rows(
                 inter = t_poly.intersection(s_poly)
                 if not inter.is_empty:
                     overlap += inter.area"""
-        print("overlap", overlap)
+        #print("overlap", overlap)
         if overlap > best_overlap:
             best_overlap, best_k = overlap, k
-    print("best_overlap", best_overlap)
+    #print("best_overlap", best_overlap)
     print("best_k", best_k)
     dy = dy_base + best_k * pitch
 
